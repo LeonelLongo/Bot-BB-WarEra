@@ -60,6 +60,7 @@ class EstadoBot:
     def __init__(self):
         self.primera_carga        = True
         self.ultimo_nombre        = "Ninguno (esperando datos...)"
+        self.ultimo_id_enviado    = None
         self.ultima_fecha         = ""
         self.ultima_fecha_error   = None
         self.usuarios_conocidos   = deque(maxlen=5000)
@@ -229,9 +230,14 @@ async def consultar_nuevos_usuarios():
                         estado.ultima_fecha = fecha_creado
                         estado.persistir()
 
+                        if user_id == estado.ultimo_id_enviado:
+                            log.info(f"[DUPLICADO] {user_id} es el mismo del último mensaje, se omite.")
+                            continue
+
                         nombre = await obtener_nombre_usuario(user_id)
                         estado.ultimo_nombre = nombre
-                        
+                        estado.ultimo_id_enviado = user_id
+
                         # Corrección: URL limpia sin formato Markdown
                         link   = f"https://warera.io/profile/{user_id}"
 
