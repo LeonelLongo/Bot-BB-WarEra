@@ -128,7 +128,7 @@ async def obtener_nombre_usuario(user_id: str) -> str:
     return f"Ciudadano_{user_id[-6:]}"
 
 # --- TAREA: Reporte de estado cada 10 minutos ---
-@tasks.loop(minutes=10)
+@tasks.loop(hours=10)
 async def reporte_estado():
     canal = client.get_channel(CANAL_ID)
     if not canal:
