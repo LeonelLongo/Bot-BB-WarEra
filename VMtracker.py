@@ -61,7 +61,6 @@ class EstadoBot:
         self.primera_carga        = True
         self.ultimo_nombre        = "Ninguno (esperando datos...)"
         self.ultimo_id_enviado    = None
-        self.ultimo_id_enviado    = None
         self.ultima_fecha         = ""
         self.ultima_fecha_error   = None
         self.usuarios_conocidos   = deque(maxlen=5000)
@@ -128,8 +127,8 @@ async def obtener_nombre_usuario(user_id: str) -> str:
 
     return f"Ciudadano_{user_id[-6:]}"
 
-# --- TAREA: Reporte de estado cada 10 minutos ---
-@tasks.loop(minutes=10)
+# --- TAREA: Reporte de estado cada 10 horas ---
+@tasks.loop(hours=10)
 async def reporte_estado():
     canal = client.get_channel(CANAL_ID)
     if not canal:
