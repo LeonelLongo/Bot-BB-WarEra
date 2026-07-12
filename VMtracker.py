@@ -60,6 +60,7 @@ class EstadoBot:
     def __init__(self):
         self.primera_carga        = True
         self.ultimo_nombre        = "Ninguno (esperando datos...)"
+        self.ultimo_id_enviado    = None
         self.ultima_fecha         = ""
         self.ultima_fecha_error   = None
         self.usuarios_conocidos   = deque(maxlen=5000)
@@ -108,11 +109,11 @@ async def obtener_nombre_usuario(user_id: str) -> str:
             async with http_session.get(url, headers=get_headers(), timeout=aiohttp.ClientTimeout(total=8)) as r:
                 if r.status == 200:
                     data = await r.json()
-                    result_data = data.get('result', {}).get('data', {})
+                    result_data = (data.get('result') or {}).get('data') or {}
                     # Intenta ambas estructuras de respuesta
                     nombre = (
                         result_data.get('username')
-                        or result_data.get('json', {}).get('username')
+                        or (result_data.get('json') or {}).get('username')
                     )
                     if nombre:
                         return nombre
@@ -126,8 +127,8 @@ async def obtener_nombre_usuario(user_id: str) -> str:
 
     return f"Ciudadano_{user_id[-6:]}"
 
-# --- TAREA: Reporte de estado cada 10 minutos ---
-@tasks.loop(minutes=10)
+# --- TAREA: Reporte de estado cada 10 horas ---
+@tasks.loop(hours=10)
 async def reporte_estado():
     canal = client.get_channel(CANAL_ID)
     if not canal:
@@ -198,7 +199,7 @@ async def consultar_nuevos_usuarios():
                 return
 
             data = await respuesta.json()
-            items = data.get('result', {}).get('data', {}).get('items', [])
+            items = ((data.get('result') or {}).get('data') or {}).get('items') or []
 
             if not items:
                 log.warning("La API devolvió lista vacía.")
@@ -207,13 +208,14 @@ async def consultar_nuevos_usuarios():
             # Ordenar de más nuevo a más viejo
             items.sort(key=lambda x: x.get('createdAt', ''), reverse=True)
 
+            estado.ultima_fecha_error = None
+
             if estado.primera_carga:
                 estado.ultima_fecha = items[0].get('createdAt', '')
                 for u in items:
                     estado.agregar_usuario(u.get('_id'))
                 nombre = await obtener_nombre_usuario(items[0].get('_id'))
                 estado.ultimo_nombre = nombre
-                estado.ultima_fecha_error = None
                 estado.persistir()
                 log.info(f"Escaneo inicial listo. Último ciudadano: {nombre}")
                 estado.primera_carga = False
@@ -229,11 +231,16 @@ async def consultar_nuevos_usuarios():
                         estado.ultima_fecha = fecha_creado
                         estado.persistir()
 
+                        if user_id == estado.ultimo_id_enviado:
+                            log.info(f"[DUPLICADO] {user_id} es el mismo del último mensaje, se omite.")
+                            continue
+
                         nombre = await obtener_nombre_usuario(user_id)
                         estado.ultimo_nombre = nombre
-                        
+                        estado.ultimo_id_enviado = user_id
+
                         # Corrección: URL limpia sin formato Markdown
-                        link   = f"https://warera.io/profile/{user_id}"
+                        link   = f"https://app.warera.io/user/{user_id}"
 
                         await cola_bienvenidas.put((nombre, link))
                         log.info(f"[NUEVO] {nombre} añadido a la cola.")
